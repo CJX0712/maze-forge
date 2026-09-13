@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Maze Forge · 迷宫锻造</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#1f2329; --sub:#6b7280;
+    --line:#e6e8eb; --accent:#2f6df6; --accent-ink:#ffffff;
+    --good:#1a9e57; --start:#1a9e57; --end:#d94b4b;
+    --mono:"SF Mono",ui-monospace,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:14px;line-height:1.5}
+  header{padding:18px 22px;border-bottom:1px solid var(--line);background:var(--panel)}
+  header h1{margin:0;font-size:18px;letter-spacing:.2px}
+  header p{margin:4px 0 0;color:var(--sub);font-size:12.5px}
+  .wrap{display:flex;gap:16px;padding:16px 22px;align-items:flex-start;flex-wrap:wrap}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .controls{width:300px;flex:0 0 auto}
+  .stage{flex:1 1 460px;min-width:340px}
+  .row{margin:10px 0}
+  label{display:block;font-size:12px;color:var(--sub);margin-bottom:4px}
+  select,input[type=number]{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font-size:13px}
+  .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+  button{cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink);padding:8px 12px;border-radius:8px;font-size:13px;transition:.12s}
+  button:hover{border-color:var(--accent);color:var(--accent)}
+  button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+  button.primary:hover{filter:brightness(1.05);color:#fff}
+  canvas{width:100%;height:auto;display:block;background:#fff;border:1px solid var(--line);border-radius:10px;aspect-ratio:1/1}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+  .stat{background:#fafbfc;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+  .stat .k{font-size:11px;color:var(--sub)}
+  .stat .v{font-size:14px;font-family:var(--mono);margin-top:2px}
+  .note{color:var(--sub);font-size:12px;margin-top:10px}
+  .err{color:var(--bad,#d94b4b);font-size:12px;margin-top:8px;min-height:14px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--sub);margin-top:8px}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  code{font-family:var(--mono);background:#f0f2f5;padding:1px 5px;border-radius:5px;font-size:12px}
+  @media (max-width:760px){.controls{width:100%}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Maze Forge <span style="font-size:11px;color:var(--accent);border:1px solid var(--line);border-radius:20px;padding:1px 9px;margin-left:6px">迷宫锻造</span></h1>
+  <p>生成完美迷宫（递归回溯 / Prim / Kruskal），再用 BFS·A*·DFS 寻路可视化 — 单文件 · 离线 · 种子可复现</p>
+</header>
+
+<div class="wrap">
+  <div class="panel controls">
+    <div class="row">
+      <label>规模 (Rows × Cols)</label>
+      <select id="size">
+        <option value="11">11 × 11（小）</option>
+        <option value="15" selected>15 × 15（中）</option>
+        <option value="25">25 × 25（大）</option>
+        <option value="41">41 × 41（巨）</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>生成算法 (Generator)</label>
+      <select id="gen">
+        <option value="bt" selected>Recursive Backtracker</option>
+        <option value="prim">Randomized Prim</option>
+        <option value="kruskal">Randomized Kruskal</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>寻路算法 (Solver)</label>
+      <select id="solver">
+        <option value="bfs" selected>BFS（最短路）</option>
+        <option value="astar">A*（最短路）</option>
+        <option value="dfs">DFS（任一条）</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>随机种子 (Seed)</label>
+      <input id="seed" type="number" value="12345" />
+    </div>
+    <div class="btns">
+      <button class="primary" id="genBtn">生成迷宫</button>
+      <button id="solveBtn">寻路</button>
+    </div>
+    <div class="btns">
+      <button id="reset">重置</button>
+      <button id="download">下载 PNG</button>
+    </div>
+    <div class="err" id="err"></div>
+    <div class="legend">
+      <span><i style="background:var(--start)"></i>起点</span>
+      <span><i style="background:var(--end)"></i>终点</span>
+      <span><i style="background:#cfe0ff"></i>访问过</span>
+      <span><i style="background:var(--accent)"></i>路径</span>
+    </div>
+    <div class="note">同一规模 + 同一生成算法 + 同一种子，永远得到同一座迷宫。改种子换一座。</div>
+  </div>
+
+  <div class="panel stage">
+    <canvas id="cv" width="600" height="600"></canvas>
+    <div class="stats">
+      <div class="stat"><div class="k">单元格</div><div class="v" id="sCells">—</div></div>
+      <div class="stat"><div class="k">通道边</div><div class="v" id="sEdges">—</div></div>
+      <div class="stat"><div class="k">完美迷宫</div><div class="v" id="sPerfect">—</div></div>
+      <div class="stat"><div class="k">路径长度</div><div class="v" id="sPath">—</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ ENGINE (DOM-free, testable) ============================ -->
+<script id="engine">
+(function(){
+  'use strict';
+  const N = 1, E = 2, S = 4, W = 8;
+
+  function mulberry32(a){
+    a = a >>> 0;
+    return function(){
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function makeRng(seed){ return mulberry32(seed >>> 0); }
+
+  function genInit(R, C){ const m = new Uint8Array(R * C); m.fill(15); return m; }
+
+  function carve(m, R, C, a, b){
+    const ar = (a / C) | 0, ac = a % C, br = (b / C) | 0, bc = b % C;
+    if (br === ar - 1){ m[a] &= ~N; m[b] &= ~S; }
+    else if (bc === ac + 1){ m[a] &= ~E; m[b] &= ~W; }
+    else if (br === ar + 1){ m[a] &= ~S; m[b] &= ~N; }
+    else if (bc === ac - 1){ m[a] &= ~W; m[b] &= ~E; }
+  }
+
+  function genBacktracker(R, C, rng){
+    const m = genInit(R, C); const visited = new Uint8Array(R * C);
+    const stack = [0]; visited[0] = 1;
+    while (stack.length){
+      const cur = stack[stack.length - 1];
+      const r = (cur / C) | 0, c = cur % C;
+      const opts = [];
+      if (r > 0 && !visited[cur - C]) opts.push(cur - C);
+      if (c < C - 1 && !visited[cur + 1]) opts.push(cur + 1);
+      if (r < R - 1 && !visited[cur + C]) opts.push(cur + C);
+      if (c > 0 && !visited[cur - 1]) opts.push(cur - 1);
+      if (!opts.length){ stack.pop(); continue; }
+      const n = opts[(rng() * opts.length) | 0];
+      carve(m, R, C, cur, n); visited[n] = 1; stack.push(n);
+    }
+    return m;
+  }
+
+  function genPrim(R, C, rng){
+    const m = genInit(R, C); const visited = new Uint8Array(R * C);
+    const frontier = []; const fset = new Set();
+    visited[0] = 1;
+    function pushFront(id){
+      const r = (id / C) | 0, c = id % C;
+      if (r > 0 && !visited[id - C] && !fset.has(id - C)){ fset.add(id - C); frontier.push(id - C); }
+      if (c < C - 1 && !visited[id + 1] && !fset.has(id + 1)){ fset.add(id + 1); frontier.push(id + 1); }
+      if (r < R - 1 && !visited[id + C] && !fset.has(id + C)){ fset.add(id + C); frontier.push(id + C); }
+      if (c > 0 && !visited[id - 1] && !fset.has(id - 1)){ fset.add(id - 1); frontier.push(id - 1); }
+    }
+    pushFront(0);
+    while (frontier.length){
+      const fi = (rng() * frontier.length) | 0;
+      const f = frontier[fi];
+      frontier[fi] = frontier[frontier.length - 1]; frontier.pop(); fset.delete(f);
+      const r = (f / C) | 0, c = f % C; const vn = [];
+      if (r > 0 && visited[f - C]) vn.push(f - C);
+      if (c < C - 1 && visited[f + 1]) vn.push(f + 1);
+      if (r < R - 1 && visited[f + C]) vn.push(f + C);
+      if (c > 0 && visited[f - 1]) vn.push(f - 1);
+      const v = vn[(rng() * vn.length) | 0];
+      carve(m, R, C, f, v); visited[f] = 1;
+      pushFront(f);
+    }
+    return m;
+  }
+
+  function genKruskal(R, C, rng){
+    const m = genInit(R, C);
+    const parent = new Int32Array(R * C);
+    for (let i = 0; i < parent.length; i++) parent[i] = i;
+    function find(x){ while (parent[x] !== x){ parent[x] = parent[parent[x]]; x = parent[x]; } return x; }
+    function uni(x, y){ parent[find(x)] = find(y); }
+    const edges = [];
+    for (let r = 0; r < R; r++) for (let c = 0; c < C; c++){
+      const id = r * C + c;
+      if (c < C - 1) edges.push([id, id + 1]);
+      if (r < R - 1) edges.push([id, id + C]);
+    }
+    for (let i = edges.length - 1; i > 0; i--){ const j = (rng() * (i + 1)) | 0; const t = edges[i]; edges[i] = edges[j]; edges[j] = t; }
+    for (let i = 0; i < edges.length; i++){
+      const a = edges[i][0], b = edges[i][1];
+      if (find(a) !== find(b)){ uni(a, b); carve(m, R, C, a, b); }
+    }
+    return m;
+  }
+
+  function neighbors(m, R, C, id){
+    const r = (id / C) | 0, c = id % C; const out = [];
+    if (r > 0 && (m[id] & N) === 0) out.push(id - C);
+    if (c < C - 1 && (m[id] & E) === 0) out.push(id + 1);
+    if (r < R - 1 && (m[id] & S) === 0) out.push(id + C);
+    if (c > 0 && (m[id] & W) === 0) out.push(id - 1);
+    return out;
+  }
+
+  function bfsReach(m, R, C, start){
+    const visited = new Uint8Array(R * C); const q = [start]; visited[start] = 1; let count = 0;
+    while (q.length){ const cur = q.shift(); count++; const ns = neighbors(m, R, C, cur); for (let i = 0; i < ns.length; i++) if (!visited[ns[i]]){ visited[ns[i]] = 1; q.push(ns[i]); } }
+    return { count: count, visited: visited };
+  }
+
+  function countEdges(m, R, C){
+    let e = 0;
+    for (let id = 0; id < R * C; id++){
+      const r = (id / C) | 0, c = id % C;
+      if (c < C - 1 && (m[id] & E) === 0) e++;
+      if (r < R - 1 && (m[id] & S) === 0) e++;
+    }
+    return e;
+  }
+
+  function isPerfect(m, R, C){
+    const reach = bfsReach(m, R, C, 0);
+    return reach.count === R * C && countEdges(m, R, C) === R * C - 1;
+  }
+
+  function bfsPath(m, R, C, start, end){
+    const prev = new Int32Array(R * C).fill(-1); const visited = new Uint8Array(R * C);
+    const q = [start]; visited[start] = 1;
+    while (q.length){
+      const cur = q.shift();
+      if (cur === end) break;
+      const ns = neighbors(m, R, C, cur);
+      for (let i = 0; i < ns.length; i++) if (!visited[ns[i]]){ visited[ns[i]] = 1; prev[ns[i]] = cur; q.push(ns[i]); }
+    }
+    if (!visited[end]) return null;
+    const path = []; let cur = end; while (cur !== -1){ path.push(cur); if (cur === start) break; cur = prev[cur]; }
+    path.reverse();
+    return path[0] === start ? path : null;
+  }
+
+  // minimal binary min-heap keyed by f
+  function astarPath(m, R, C, start, end){
+    const n = R * C;
+    const g = new Float64Array(n).fill(Infinity);
+    const prev = new Int32Array(n).fill(-1);
+    const closed = new Uint8Array(n);
+    const heap = []; // [f, id]
+    function h(id){ const r = (id / C) | 0, c = id % C, er = (end / C) | 0, ec = end % C; return Math.abs(r - er) + Math.abs(c - ec); }
+    function push(item){ heap.push(item); let i = heap.length - 1; while (i > 0){ const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; const t = heap[p]; heap[p] = heap[i]; heap[i] = t; i = p; } }
+    function pop(){ const top = heap[0]; const last = heap.pop(); if (heap.length){ heap[0] = last; let i = 0; for (;;){ let l = 2 * i + 1, r = 2 * i + 2, s = i; if (l < heap.length && heap[l][0] < heap[s][0]) s = l; if (r < heap.length && heap[r][0] < heap[s][0]) s = r; if (s === i) break; const t = heap[s]; heap[s] = heap[i]; heap[i] = t; i = s; } } return top; }
+    g[start] = 0; push([h(start), start]);
+    while (heap.length){
+      const cur = pop()[1];
+      if (closed[cur]) continue;
+      closed[cur] = 1;
+      if (cur === end) break;
+      const ns = neighbors(m, R, C, cur);
+      for (let i = 0; i < ns.length; i++){
+        const nb = ns[i]; const ng = g[cur] + 1;
+        if (ng < g[nb]){ g[nb] = ng; prev[nb] = cur; push([ng + h(nb), nb]); }
+      }
+    }
+    if (g[end] === Infinity) return null;
+    const path = []; let cur = end; while (cur !== -1){ path.push(cur); if (cur === start) break; cur = prev[cur]; }
+    path.reverse();
+    return path[0] === start ? path : null;
+  }
+
+  function dfsPath(m, R, C, start, end){
+    const visited = new Uint8Array(R * C);
+    const stack = [[start]];
+    visited[start] = 1;
+    while (stack.length){
+      const path = stack[stack.length - 1];
+      const cur = path[path.length - 1];
+      if (cur === end) return path;
+      const ns = neighbors(m, R, C, cur);
+      let moved = false;
+      for (let i = 0; i < ns.length; i++) if (!visited[ns[i]]){ visited[ns[i]] = 1; stack.push(path.concat(ns[i])); moved = true; break; }
+      if (!moved) stack.pop();
+    }
+    return null;
+  }
+
+  function validatePath(m, R, C, path, start, end){
+    if (!path || !path.length) return false;
+    if (path[0] !== start || path[path.length - 1] !== end) return false;
+    for (let i = 1; i < path.length; i++){
+      const a = path[i - 1], b = path[i];
+      const ns = neighbors(m, R, C, a);
+      let ok = false; for (let k = 0; k < ns.length; k++) if (ns[k] === b){ ok = true; break; }
+      if (!ok) return false;
+    }
+    return true;
+  }
+
+  function hashMaze(m){
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < m.length; i++){ h ^= m[i]; h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function cloneMaze(m){ return m.slice(); }
+
+  function generate(R, C, algo, seed){
+    const rng = makeRng(seed);
+    if (algo === 'prim') return genPrim(R, C, rng);
+    if (algo === 'kruskal') return genKruskal(R, C, rng);
+    return genBacktracker(R, C, rng);
+  }
+  function solve(m, R, C, start, end, algo){
+    if (algo === 'astar') return astarPath(m, R, C, start, end);
+    if (algo === 'dfs') return dfsPath(m, R, C, start, end);
+    return bfsPath(m, R, C, start, end);
+  }
+
+  const MAZE = {
+    N: N, E: E, S: S, W: W, mulberry32: mulberry32, makeRng: makeRng,
+    genInit: genInit, carve: carve, genBacktracker: genBacktracker, genPrim: genPrim, genKruskal: genKruskal,
+    generate: generate, neighbors: neighbors, bfsReach: bfsReach, countEdges: countEdges, isPerfect: isPerfect,
+    bfsPath: bfsPath, astarPath: astarPath, dfsPath: dfsPath, solve: solve, validatePath: validatePath,
+    hashMaze: hashMaze, cloneMaze: cloneMaze
+  };
+  if (typeof window !== 'undefined') window.MAZE = MAZE;
+  if (typeof globalThis !== 'undefined') globalThis.MAZE = MAZE;
+  if (typeof module !== 'undefined' && module.exports) module.exports = MAZE;
+})();
+</script>
+
+<!-- ============================ UI (DOM, guarded for vm) ============================ -->
+<script id="ui">
+(function(){
+  'use strict';
+  if (typeof document === 'undefined') return;
+  const MAZE = (typeof window !== 'undefined' && window.MAZE) || null;
+  if (!MAZE) return;
+  const $ = function(id){ return document.getElementById(id); };
+  const cv = $('cv'); const ctx2 = cv.getContext('2d');
+
+  let state = { R: 15, C: 15, algo: 'bt', m: null, start: 0, end: 0, lastSolve: null };
+
+  function regen(){
+    const n = parseInt($('size').value, 10) || 15;
+    state.R = n; state.C = n; state.algo = $('gen').value;
+    const seed = (parseInt($('seed').value, 10) || 0) >>> 0;
+    if (n < 1 || n > 200){ $('err').textContent = '规模需在 1–200'; return; }
+    $('err').textContent = '';
+    state.m = MAZE.generate(state.R, state.C, state.algo, seed);
+    state.start = 0; state.end = state.R * state.C - 1; state.lastSolve = null;
+    draw(null, null);
+    updateStats();
+  }
+
+  function updateStats(){
+    const total = state.R * state.C;
+    $('sCells').textContent = total;
+    $('sEdges').textContent = MAZE.countEdges(state.m, state.R, state.C);
+    $('sPerfect').textContent = MAZE.isPerfect(state.m, state.R, state.C) ? '✓' : '✗';
+  }
+
+  function solve(){
+    if (!state.m) regen();
+    const algo = $('solver').value;
+    const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    const path = MAZE.solve(state.m, state.R, state.C, state.start, state.end, algo);
+    const t1 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    if (!path){ $('err').textContent = '找不到路径'; return; }
+    $('err').textContent = '';
+    state.lastSolve = { path: path, algo: algo, ms: Math.round((t1 - t0) * 100) / 100 };
+    draw(path, null);
+    $('sPath').textContent = path.length;
+  }
+
+  function draw(path, _unused){
+    const m = state.m; if (!m) return;
+    const R = state.R, C = state.C, W = cv.width, H = cv.height, margin = 12;
+    const cell = Math.floor(Math.min((W - 2 * margin) / C, (H - 2 * margin) / R));
+    const ox = Math.floor((W - cell * C) / 2), oy = Math.floor((H - cell * R) / 2);
+    ctx2.clearRect(0, 0, W, H);
+    ctx2.fillStyle = '#fff'; ctx2.fillRect(0, 0, W, H);
+    // visited fill (from last solve)
+    if (state.lastSolve){
+      const reach = MAZE.bfsReach(m, R, C, state.start);
+      ctx2.fillStyle = '#cfe0ff';
+      for (let id = 0; id < R * C; id++) if (reach.visited[id]){ const r = (id / C) | 0, c = id % C; ctx2.fillRect(ox + c * cell, oy + r * cell, cell, cell); }
+    }
+    // walls
+    ctx2.strokeStyle = '#1f2329'; ctx2.lineWidth = Math.max(1, Math.floor(cell / 12));
+    ctx2.lineCap = 'round';
+    ctx2.beginPath();
+    for (let id = 0; id < R * C; id++){
+      const r = (id / C) | 0, c = id % C; const x = ox + c * cell, y = oy + r * cell;
+      if (m[id] & MAZE.N){ ctx2.moveTo(x, y); ctx2.lineTo(x + cell, y); }
+      if (m[id] & MAZE.W){ ctx2.moveTo(x, y); ctx2.lineTo(x, y + cell); }
+      if (m[id] & MAZE.S){ ctx2.moveTo(x, y + cell); ctx2.lineTo(x + cell, y + cell); }
+      if (m[id] & MAZE.E){ ctx2.moveTo(x + cell, y); ctx2.lineTo(x + cell, y + cell); }
+    }
+    ctx2.stroke();
+    // path
+    if (path){
+      ctx2.strokeStyle = '#2f6df6'; ctx2.lineWidth = Math.max(2, Math.floor(cell / 5)); ctx2.lineJoin = 'round';
+      ctx2.beginPath();
+      for (let i = 0; i < path.length; i++){
+        const r = (path[i] / C) | 0, c = path[i] % C; const px = ox + c * cell + cell / 2, py = oy + r * cell + cell / 2;
+        if (i === 0) ctx2.moveTo(px, py); else ctx2.lineTo(px, py);
+      }
+      ctx2.stroke();
+    }
+    // start / end markers
+    function mark(id, color){ const r = (id / C) | 0, c = id % C; const px = ox + c * cell + cell / 2, py = oy + r * cell + cell / 2; ctx2.fillStyle = color; ctx2.beginPath(); ctx2.arc(px, py, Math.max(2, cell / 3.2), 0, Math.PI * 2); ctx2.fill(); }
+    mark(state.start, '#1a9e57'); mark(state.end, '#d94b4b');
+  }
+
+  function download(){
+    if (!state.m) regen();
+    const a = document.createElement('a'); a.download = 'maze-forge.png'; a.href = cv.toDataURL('image/png'); a.click();
+  }
+
+  function init(){
+    $('genBtn').addEventListener('click', regen);
+    $('solveBtn').addEventListener('click', solve);
+    $('reset').addEventListener('click', regen);
+    $('download').addEventListener('click', download);
+    regen();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>
+</body>
+</html>
