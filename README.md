@@ -1,5 +1,12 @@
 # Maze Forge · 迷宫锻造
 
+<p align="center">
+  <a href="https://github.com/CJX0712/maze-forge/actions/workflows/ci.yml"><img src="https://github.com/CJX0712/maze-forge/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
+  <a href="https://github.com/CJX0712/maze-forge/releases"><img src="https://img.shields.io/github/v/release/CJX0712/maze-forge?sort=semver" alt="release"></a>
+  <a href="https://github.com/CJX0712/maze-forge/blob/main/LICENSE"><img src="https://img.shields.io/github/license/CJX0712/maze-forge" alt="license"></a>
+  <img src="https://img.shields.io/badge/author-%E6%99%A8%E6%98%9F-1f6feb" alt="author">
+</p>
+
 单文件 HTML 工具：生成**完美迷宫**（Perfect Maze），并对任意起点/终点做**寻路可视化**。
 零依赖、完全离线，打开 `index.html` 即用。
 
